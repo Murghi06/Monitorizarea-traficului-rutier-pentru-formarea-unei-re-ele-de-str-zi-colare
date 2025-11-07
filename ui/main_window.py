@@ -26,6 +26,7 @@ class TrafficMonitorApp(ctk.CTk):
         # Configure window
         self.title("Traffic Monitoring System")
         self.geometry("1400x800")
+        self.minsize(1000, 600)  # Set minimum window size
         
         # Set theme
         ctk.set_appearance_mode("dark")
@@ -413,23 +414,46 @@ class TrafficMonitorApp(ctk.CTk):
         return frame
     
     def _display_frame(self, frame):
-        """Display frame in GUI with optimized resizing"""
+        """Display frame in GUI with dynamic resizing to fit container"""
         # Convert color space
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        # Resize for display using fast interpolation
+        # Get current container size
+        container_width = self.video_label.winfo_width()
+        container_height = self.video_label.winfo_height()
+        
+        # Use default size if container not yet rendered (initial display)
+        if container_width <= 1 or container_height <= 1:
+            container_width = DISPLAY_RESIZE_WIDTH
+            container_height = DISPLAY_RESIZE_HEIGHT
+        
+        # Calculate aspect ratios
+        frame_aspect = frame.shape[1] / frame.shape[0]  # width / height
+        container_aspect = container_width / container_height
+        
+        # Determine resize dimensions to fill container while maintaining aspect ratio
+        if frame_aspect > container_aspect:
+            # Frame is wider - fit to width
+            new_width = container_width
+            new_height = int(container_width / frame_aspect)
+        else:
+            # Frame is taller - fit to height
+            new_height = container_height
+            new_width = int(container_height * frame_aspect)
+        
+        # Resize frame for display using fast interpolation
         frame_resized = cv2.resize(
             frame_rgb, 
-            (DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT),
+            (new_width, new_height),
             interpolation=cv2.INTER_LINEAR  # Faster than INTER_CUBIC
         )
         
-        # Convert to CTkImage for better HiDPI support
+        # Convert to PIL Image then CTkImage
         pil_image = Image.fromarray(frame_resized)
         ctk_image = ctk.CTkImage(
             light_image=pil_image,
             dark_image=pil_image,
-            size=(DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT)
+            size=(new_width, new_height)
         )
         
         # Update display
