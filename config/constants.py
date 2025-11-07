@@ -52,7 +52,7 @@ YOLO_MODEL = 'yolov8n.pt'
 YOLO_IMGSZ = 640
 
 # Performance optimization settings
-SKIP_FRAMES = 2  # Process every Nth frame (1=all, 2=every 2nd, 3=every 3rd)
+SKIP_FRAMES = 3  # Process every Nth frame (1=all, 2=every 2nd, 3=every 3rd)
 USE_GPU = True  # Enable GPU acceleration if available (auto-detects)
 PROCESS_RESIZE_WIDTH = 1280  # Resize width for detection (0 = no resize)
 DISPLAY_RESIZE_WIDTH = 960  # Display width
