@@ -24,6 +24,12 @@ class VehicleTracker:
         self.max_disappeared = MAX_DISAPPEARED_FRAMES // SKIP_FRAMES
         # Also increase distance threshold slightly when skipping frames
         self.distance_threshold = DISTANCE_THRESHOLD * (1 + (SKIP_FRAMES - 1) * 0.2)
+        self.movement_threshold = MOVEMENT_THRESHOLD
+        
+    def set_scaled_parameters(self, distance_threshold, movement_threshold):
+        """Update tracking thresholds based on video resolution"""
+        self.distance_threshold = distance_threshold * (1 + (SKIP_FRAMES - 1) * 0.2)
+        self.movement_threshold = movement_threshold
         
     def reset(self):
         """Reset tracker state"""
@@ -116,7 +122,7 @@ class VehicleTracker:
                 obj['total_movement'] += movement
                 
                 # Track stationary frames
-                if movement < MOVEMENT_THRESHOLD:
+                if movement < self.movement_threshold:
                     obj['stationary_frames'] += 1
                 else:
                     # Vehicle is moving - reset stationary counter

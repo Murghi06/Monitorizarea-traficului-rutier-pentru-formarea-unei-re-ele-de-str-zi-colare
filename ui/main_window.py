@@ -11,7 +11,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from config.constants import THEME_COLORS, SKIP_FRAMES, DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT
+from config.constants import THEME_COLORS, SKIP_FRAMES, DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT, get_scaled_parameters
 from core import VehicleDetector, VehicleTracker
 from utils import DataManager, VideoSource
 from ui.components import StatsCard, ModernButton, VideoDisplay, StatusBar, InfoCard
@@ -313,6 +313,32 @@ class TrafficMonitorApp(ctk.CTk):
             messagebox.showerror("Error", "Failed to open video source!")
             self.status_bar.set_status("Failed to open video source.", "danger")
             return
+        
+        # Get video resolution and scale parameters accordingly
+        width, height = self.current_video.get_resolution()
+        scaled_params = get_scaled_parameters(width, height)
+        
+        # Apply scaled parameters to detector and tracker
+        self.detector.set_confidence_threshold(scaled_params['confidence_threshold'])
+        self.tracker.set_scaled_parameters(
+            scaled_params['distance_threshold'],
+            scaled_params['movement_threshold']
+        )
+        
+        # Log the scaling info
+        print(f"\n📹 Video Resolution: {width}x{height} ({scaled_params['resolution_class']})")
+        print(f"📊 Scale Factor: {scaled_params['scale_factor']}")
+        print(f"🎯 Adjusted Parameters:")
+        print(f"   - Confidence Threshold: {scaled_params['confidence_threshold']}")
+        print(f"   - Distance Threshold: {scaled_params['distance_threshold']}")
+        print(f"   - Movement Threshold: {scaled_params['movement_threshold']}\n")
+        
+        # Update status to show resolution-aware settings
+        self.status_bar.set_status(
+            f"Monitoring {width}x{height} ({scaled_params['resolution_class']}) - "
+            f"Confidence: {scaled_params['confidence_threshold']}", 
+            "success"
+        )
         
         # Update state
         self.is_monitoring = True
