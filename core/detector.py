@@ -19,6 +19,11 @@ class VehicleDetector:
         self.model = None
         self.device = 'cpu'
         self.use_half = False
+        self.confidence_threshold = CONFIDENCE_THRESHOLD  # Default, can be updated
+        
+    def set_confidence_threshold(self, threshold):
+        """Update confidence threshold based on video resolution"""
+        self.confidence_threshold = threshold
         
     def load_model(self):
         """Load and prepare YOLO model with GPU support"""
@@ -76,7 +81,7 @@ class VehicleDetector:
         results = self.model.predict(
             frame_resized, 
             verbose=False, 
-            conf=CONFIDENCE_THRESHOLD, 
+            conf=self.confidence_threshold,  # Use instance variable instead of constant
             imgsz=YOLO_IMGSZ,
             device=self.device,
             half=self.use_half,  # Use FP16 if GPU available

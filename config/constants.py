@@ -20,7 +20,7 @@ COLOR_MAP = {
 }
 
 # Detection and tracking thresholds
-CONFIDENCE_THRESHOLD = 0.35  # Lowered to detect more vehicles
+CONFIDENCE_THRESHOLD = 0.45  # Baseline for 1080p (adjusted to reduce false positives)
 DISTANCE_THRESHOLD = 150
 MAX_DISAPPEARED_FRAMES = 45  # Base value (adjusted by tracker based on SKIP_FRAMES)
 PARKED_THRESHOLD = 200
@@ -60,3 +60,66 @@ DISPLAY_RESIZE_HEIGHT = 540  # Display height
 
 # Data file
 DATA_FILE = 'traffic_data.csv'
+
+
+# Resolution-based parameter scaling
+def get_scaled_parameters(video_width, video_height):
+    """
+    Calculate scaled detection parameters based on video resolution.
+    Reference resolution: 1920x1080 (1080p) - baseline for current config
+    
+    Args:
+        video_width: Width of the input video
+        video_height: Height of the input video
+    
+    Returns:
+        dict: Scaled parameters for detection and tracking
+    """
+    # Reference resolution (1080p) - our baseline
+    REFERENCE_WIDTH = 1920
+    REFERENCE_HEIGHT = 1080
+    
+    # Calculate resolution scale factor (based on total pixel count)
+    reference_pixels = REFERENCE_WIDTH * REFERENCE_HEIGHT
+    video_pixels = video_width * video_height
+    scale_factor = (video_pixels / reference_pixels) ** 0.5  # Square root for more balanced scaling
+    
+    # Base parameters (optimized for 1080p to achieve ~125 vehicle count)
+    base_confidence = 0.45  # Increased from 0.35 to reduce over-counting
+    base_distance = 150
+    base_movement = 15
+    
+    # Scale parameters
+    # Lower resolution → need HIGHER confidence (fewer false positives from low detail)
+    # Higher resolution → can use LOWER confidence (more detail available)
+    scaled_confidence = base_confidence + (1.0 - scale_factor) * 0.15  # Increase threshold for lower res
+    scaled_confidence = max(0.30, min(0.70, scaled_confidence))  # Clamp between 0.30 and 0.70
+    
+    # Distance threshold scales with resolution (fewer pixels = closer tracking needed)
+    scaled_distance = base_distance * scale_factor
+    scaled_distance = max(50, min(300, scaled_distance))  # Clamp between 50 and 300
+    
+    # Movement threshold also scales with resolution
+    scaled_movement = base_movement * scale_factor
+    scaled_movement = max(5, min(30, scaled_movement))  # Clamp between 5 and 30
+    
+    return {
+        'confidence_threshold': round(scaled_confidence, 2),
+        'distance_threshold': int(scaled_distance),
+        'movement_threshold': int(scaled_movement),
+        'scale_factor': round(scale_factor, 2),
+        'resolution_class': _get_resolution_class(video_width, video_height)
+    }
+
+
+def _get_resolution_class(width, height):
+    """Classify video resolution for logging/debugging"""
+    pixels = width * height
+    if pixels >= 1920 * 1080:
+        return "1080p+"
+    elif pixels >= 1280 * 720:
+        return "720p"
+    elif pixels >= 640 * 480:
+        return "480p"
+    else:
+        return "low"

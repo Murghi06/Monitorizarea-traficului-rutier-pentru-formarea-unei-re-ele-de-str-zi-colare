@@ -13,6 +13,7 @@ class VideoSource:
         self.source = source
         self.is_live = is_live
         self.cap = None
+        self.resolution = (0, 0)  # Will be set when video opens
     
     def open(self):
         """Open video source with hardware acceleration"""
@@ -41,7 +42,23 @@ class VideoSource:
                 # Minimize buffering for responsive playback
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
+        # Get video resolution if opened successfully
+        if self.cap and self.cap.isOpened():
+            width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.resolution = (width, height)
+        
         return self.cap.isOpened() if self.cap else False
+    
+    def get_resolution(self):
+        """Get video resolution as (width, height)"""
+        return self.resolution
+    
+    def get_fps(self):
+        """Get video frame rate"""
+        if self.cap and self.cap.isOpened():
+            return self.cap.get(cv2.CAP_PROP_FPS)
+        return 0
     
     def read(self):
         """Read frame from video source"""
