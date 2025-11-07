@@ -5,7 +5,10 @@ Handles object tracking and counting
 
 import numpy as np
 from collections import defaultdict
-from config.constants import DISTANCE_THRESHOLD, MAX_DISAPPEARED_FRAMES, PARKED_THRESHOLD, MOVEMENT_THRESHOLD
+from config.constants import (
+    DISTANCE_THRESHOLD, MAX_DISAPPEARED_FRAMES, PARKED_THRESHOLD, 
+    MOVEMENT_THRESHOLD, SKIP_FRAMES
+)
 
 
 class VehicleTracker:
@@ -15,6 +18,12 @@ class VehicleTracker:
         self.tracked_objects = {}
         self.next_object_id = 0
         self.vehicle_counts = defaultdict(int)
+        
+        # Adjust tracking parameters based on frame skipping
+        # When skipping frames, we need to be more tolerant of "disappeared" objects
+        self.max_disappeared = MAX_DISAPPEARED_FRAMES // SKIP_FRAMES
+        # Also increase distance threshold slightly when skipping frames
+        self.distance_threshold = DISTANCE_THRESHOLD * (1 + (SKIP_FRAMES - 1) * 0.2)
         
     def reset(self):
         """Reset tracker state"""
@@ -44,7 +53,7 @@ class VehicleTracker:
             # Mark all objects as disappeared
             for obj_id in list(self.tracked_objects.keys()):
                 self.tracked_objects[obj_id]['disappeared'] += 1
-                if self.tracked_objects[obj_id]['disappeared'] > MAX_DISAPPEARED_FRAMES:
+                if self.tracked_objects[obj_id]['disappeared'] > self.max_disappeared:
                     del self.tracked_objects[obj_id]
             return []
         
@@ -56,14 +65,14 @@ class VehicleTracker:
         return self._match_and_update(detections, current_centroids)
     
     def _register_new_objects(self, detections, centroids):
-        """Register completely new objects"""
+        """Register completely new objects and count them immediately if not parked"""
         new_objects = []
         for i, det in enumerate(detections):
             self.tracked_objects[self.next_object_id] = {
                 'centroid': centroids[i],
                 'disappeared': 0,
                 'class': det['class'],
-                'counted': False,
+                'counted': False,  # Will be counted by count_new_vehicles
                 'stationary_frames': 0,
                 'is_parked': False,
                 'total_movement': 0
@@ -93,7 +102,7 @@ class VehicleTracker:
         for _ in range(min(len(object_ids), len(current_centroids))):
             min_idx = np.unravel_index(distances.argmin(), distances.shape)
             
-            if distances[min_idx] < DISTANCE_THRESHOLD:
+            if distances[min_idx] < self.distance_threshold:
                 obj_id = object_ids[min_idx[0]]
                 obj = self.tracked_objects[obj_id]
                 old_centroid = obj['centroid']
@@ -106,20 +115,15 @@ class VehicleTracker:
                 obj['disappeared'] = 0
                 obj['total_movement'] += movement
                 
-                # Check if stationary or moving
+                # Track stationary frames
                 if movement < MOVEMENT_THRESHOLD:
                     obj['stationary_frames'] += 1
                 else:
-                    was_parked = obj['is_parked']
+                    # Vehicle is moving - reset stationary counter
                     obj['stationary_frames'] = 0
                     obj['is_parked'] = False
-                    
-                    # Count vehicle if it was parked and is now moving
-                    if was_parked and not obj['counted']:
-                        self.vehicle_counts[obj['class']] += 1
-                        obj['counted'] = True
                 
-                # Mark as parked if stationary too long
+                # Mark as parked if stationary for very long
                 if obj['stationary_frames'] > PARKED_THRESHOLD:
                     obj['is_parked'] = True
                 
@@ -132,7 +136,7 @@ class VehicleTracker:
         for i, obj_id in enumerate(object_ids):
             if i not in matched_objects:
                 self.tracked_objects[obj_id]['disappeared'] += 1
-                if self.tracked_objects[obj_id]['disappeared'] > MAX_DISAPPEARED_FRAMES:
+                if self.tracked_objects[obj_id]['disappeared'] > self.max_disappeared:
                     del self.tracked_objects[obj_id]
         
         # Handle unmatched detections (new objects)
@@ -141,9 +145,9 @@ class VehicleTracker:
                 # Check if it's a rediscovered object
                 is_rediscovery = False
                 for obj_id, obj in list(self.tracked_objects.items()):
-                    if obj['disappeared'] > 0 and obj['disappeared'] <= MAX_DISAPPEARED_FRAMES:
+                    if obj['disappeared'] > 0 and obj['disappeared'] <= self.max_disappeared:
                         distance = self.calculate_distance(obj['centroid'], current_centroids[i])
-                        if distance < DISTANCE_THRESHOLD * 1.5:
+                        if distance < self.distance_threshold * 1.5:
                             obj['centroid'] = current_centroids[i]
                             obj['disappeared'] = 0
                             is_rediscovery = True
@@ -165,12 +169,20 @@ class VehicleTracker:
         return new_objects
     
     def count_new_vehicles(self, new_object_ids):
-        """Count newly detected vehicles"""
+        """
+        Count all newly detected vehicles immediately.
+        Only exclude vehicles if they are truly parked (stationary for 200+ frames).
+        This ensures we count all moving vehicles, including those at intersections.
+        """
         for obj_id in new_object_ids:
             obj = self.tracked_objects.get(obj_id)
-            if obj and not obj['counted'] and not obj['is_parked']:
-                self.vehicle_counts[obj['class']] += 1
-                obj['counted'] = True
+            if obj and not obj['counted']:
+                # Count immediately unless already marked as parked
+                # (Note: new vehicles won't be parked yet, so this counts all new detections)
+                if not obj['is_parked']:
+                    self.vehicle_counts[obj['class']] += 1
+                    obj['counted'] = True
+                    print(f"✓ Counted new {obj['class']} (ID: {obj_id}) - Total {obj['class']}: {self.vehicle_counts[obj['class']]}")
     
     def is_object_parked(self, centroid):
         """Check if a detection corresponds to a parked object"""

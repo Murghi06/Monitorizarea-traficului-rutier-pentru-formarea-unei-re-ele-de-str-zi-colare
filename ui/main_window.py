@@ -11,7 +11,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from config.constants import THEME_COLORS
+from config.constants import THEME_COLORS, SKIP_FRAMES, DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT
 from core import VehicleDetector, VehicleTracker
 from utils import DataManager, VideoSource
 from ui.components import StatsCard, ModernButton, VideoDisplay, StatusBar, InfoCard
@@ -39,6 +39,8 @@ class TrafficMonitorApp(ctk.CTk):
         self.current_video = None
         self.session_start = None
         self.frame_counter = 0
+        self.processed_frames = 0  # Frames actually processed by AI
+        self.last_processed_frame = None  # Cache for display
         
         # Initialize components
         self.detector = VehicleDetector()
@@ -359,7 +361,9 @@ class TrafficMonitorApp(ctk.CTk):
             self.status_bar.set_status("Monitoring active...", "success")
     
     def _monitoring_loop(self):
-        """Main monitoring loop"""
+        """Main monitoring loop with frame skipping optimization"""
+        import time
+        
         while self.is_monitoring:
             if not self.is_paused:
                 ret, frame = self.current_video.read()
@@ -368,16 +372,31 @@ class TrafficMonitorApp(ctk.CTk):
                     self.after(0, self._stop_monitoring)
                     break
                 
-                # Process frame
                 self.frame_counter += 1
-                frame = self._process_frame(frame)
                 
-                # Display frame
-                self.after(0, lambda f=frame: self._display_frame(f))
-                
-                # Update stats
-                self.after(0, self._update_stats)
-                self.after(0, lambda: self.frames_label.configure(text=f"Frames: {self.frame_counter}"))
+                # Process every Nth frame based on SKIP_FRAMES setting
+                if self.frame_counter % SKIP_FRAMES == 0:
+                    # Process this frame
+                    self.processed_frames += 1
+                    processed_frame = self._process_frame(frame.copy())
+                    self.last_processed_frame = processed_frame
+                    
+                    # Display processed frame
+                    self.after(0, lambda f=processed_frame: self._display_frame(f))
+                    
+                    # Update stats every 5 processed frames to reduce GUI overhead
+                    if self.processed_frames % 5 == 0:
+                        self.after(0, self._update_stats)
+                        self.after(0, lambda: self.frames_label.configure(
+                            text=f"Frames: {self.frame_counter} (Processed: {self.processed_frames})"
+                        ))
+                else:
+                    # Skip AI processing, but still display last processed frame
+                    if self.last_processed_frame is not None and self.frame_counter % 2 == 0:
+                        self.after(0, lambda f=self.last_processed_frame: self._display_frame(f))
+            else:
+                # Paused - wait a bit
+                time.sleep(0.1)
     
     def _process_frame(self, frame):
         """Process frame for vehicle detection"""
@@ -394,15 +413,28 @@ class TrafficMonitorApp(ctk.CTk):
         return frame
     
     def _display_frame(self, frame):
-        """Display frame in GUI"""
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame = cv2.resize(frame, (960, 540))
+        """Display frame in GUI with optimized resizing"""
+        # Convert color space
+        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
-        img = Image.fromarray(frame)
-        imgtk = ImageTk.PhotoImage(image=img)
+        # Resize for display using fast interpolation
+        frame_resized = cv2.resize(
+            frame_rgb, 
+            (DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT),
+            interpolation=cv2.INTER_LINEAR  # Faster than INTER_CUBIC
+        )
         
-        self.video_label.imgtk = imgtk
-        self.video_label.configure(image=imgtk)
+        # Convert to CTkImage for better HiDPI support
+        pil_image = Image.fromarray(frame_resized)
+        ctk_image = ctk.CTkImage(
+            light_image=pil_image,
+            dark_image=pil_image,
+            size=(DISPLAY_RESIZE_WIDTH, DISPLAY_RESIZE_HEIGHT)
+        )
+        
+        # Update display
+        self.video_label.configure(image=ctk_image)
+        self.video_label.image = ctk_image  # Keep reference
     
     def _update_stats(self):
         """Update statistics display"""
@@ -427,9 +459,10 @@ class TrafficMonitorApp(ctk.CTk):
         if messagebox.askyesno("Reset Counters", "Are you sure you want to reset all counters?"):
             self.tracker.reset()
             self.frame_counter = 0
+            self.processed_frames = 0
             self.session_start = datetime.now()
             self._update_stats()
-            self.frames_label.configure(text="Frames: 0")
+            self.frames_label.configure(text="Frames: 0 (Processed: 0)")
             self.status_bar.set_status("Counters reset.", "info")
     
     def _save_data(self):

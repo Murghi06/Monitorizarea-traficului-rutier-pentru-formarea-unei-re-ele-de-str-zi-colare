@@ -15,7 +15,7 @@ class VideoSource:
         self.cap = None
     
     def open(self):
-        """Open video source"""
+        """Open video source with hardware acceleration"""
         if self.is_live:
             # Try different backends for live camera
             for backend in [cv2.CAP_DSHOW, cv2.CAP_MSMF, cv2.CAP_ANY]:
@@ -28,7 +28,18 @@ class VideoSource:
                 self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAMERA_HEIGHT)
                 self.cap.set(cv2.CAP_PROP_BUFFERSIZE, CAMERA_BUFFER_SIZE)
         else:
+            # For video files, try hardware-accelerated backends
             self.cap = cv2.VideoCapture(self.source)
+            
+            if self.cap.isOpened():
+                # Try to enable hardware acceleration
+                try:
+                    self.cap.set(cv2.CAP_PROP_HW_ACCELERATION, cv2.VIDEO_ACCELERATION_ANY)
+                except:
+                    pass  # If not supported, continue with software decode
+                
+                # Minimize buffering for responsive playback
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         
         return self.cap.isOpened() if self.cap else False
     
