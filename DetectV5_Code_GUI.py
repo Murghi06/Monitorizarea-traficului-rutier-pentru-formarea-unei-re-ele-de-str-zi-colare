@@ -1,7 +1,32 @@
 """
-Traffic Monitoring System - GUI Version
-Modern interface with Tkinter
+Traffic Monitoring System - Enhanced Modern GUI Version
+Using CustomTkinter for a modern, user-friendly interface
+
+This version uses a modular architecture with separate modules for:
+- UI components (ui/)
+- Core detection and tracking (core/)
+- Utilities (utils/)
+- Configuration (config/)
+
+For easy maintenance and extensibility.
 """
+
+from ui import TrafficMonitorApp
+
+
+def main():
+    """Main entry point for the Traffic Monitoring System"""
+    app = TrafficMonitorApp()
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    main()
+
+
+# ============================================================================
+# LEGACY CODE BELOW (Kept for reference - not used in new implementation)
+# ============================================================================
 
 import cv2
 from ultralytics import YOLO
@@ -15,7 +40,7 @@ from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
 import threading
 
-class TrafficMonitorGUI:
+class TrafficMonitorGUI_Legacy:
     """GUI wrapper for Traffic Monitor"""
     
     # Class constants
@@ -605,12 +630,8 @@ class TrafficMonitorGUI:
         messagebox.showinfo("Saved", f"Data saved to {filename}")
 
 
-def main():
-    """Main entry point"""
+def main_legacy():
+    """Legacy main entry point (not used)"""
     root = tk.Tk()
-    app = TrafficMonitorGUI(root)
+    app = TrafficMonitorGUI_Legacy(root)
     root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
