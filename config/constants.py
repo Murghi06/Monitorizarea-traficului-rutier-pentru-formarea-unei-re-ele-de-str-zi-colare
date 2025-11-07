@@ -20,9 +20,9 @@ COLOR_MAP = {
 }
 
 # Detection and tracking thresholds
-CONFIDENCE_THRESHOLD = 0.45
+CONFIDENCE_THRESHOLD = 0.35  # Lowered to detect more vehicles
 DISTANCE_THRESHOLD = 150
-MAX_DISAPPEARED_FRAMES = 45
+MAX_DISAPPEARED_FRAMES = 45  # Base value (adjusted by tracker based on SKIP_FRAMES)
 PARKED_THRESHOLD = 200
 MOVEMENT_THRESHOLD = 15
 
@@ -50,6 +50,13 @@ CAMERA_BUFFER_SIZE = 1
 # Model settings
 YOLO_MODEL = 'yolov8n.pt'
 YOLO_IMGSZ = 640
+
+# Performance optimization settings
+SKIP_FRAMES = 2  # Process every Nth frame (1=all, 2=every 2nd, 3=every 3rd)
+USE_GPU = True  # Enable GPU acceleration if available (auto-detects)
+PROCESS_RESIZE_WIDTH = 1280  # Resize width for detection (0 = no resize)
+DISPLAY_RESIZE_WIDTH = 960  # Display width
+DISPLAY_RESIZE_HEIGHT = 540  # Display height
 
 # Data file
 DATA_FILE = 'traffic_data.csv'
