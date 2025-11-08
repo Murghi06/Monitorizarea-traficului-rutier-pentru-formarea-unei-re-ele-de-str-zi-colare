@@ -13,25 +13,27 @@ class DataManager:
     
     @staticmethod
     def save_session_data(vehicle_counts, session_start, is_live):
-        """Save monitoring session data to CSV"""
+        """Save monitoring session data to CSV with proper column alignment"""
         if sum(vehicle_counts.values()) == 0:
             return None
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         duration = str(datetime.now() - session_start).split('.')[0] if session_start else "00:00:00"
         
+        # Column structure aligned to requirements:
+        # A: Timestamp, B: Source, C: Time Monitored, D: Cars, E: Motorcycles, F: Buses, G: Trucks, H: Total
         data = {
-            'Timestamp': timestamp,
-            'Source': 'Live Camera' if is_live else 'Video File',
-            'Duration': duration,
-            'Cars': vehicle_counts.get('car', 0),
-            'Motorcycles': vehicle_counts.get('motorcycle', 0),
-            'Buses': vehicle_counts.get('bus', 0),
-            'Trucks': vehicle_counts.get('truck', 0),
-            'Total': sum(vehicle_counts.values())
+            'Timestamp': [timestamp],                              # Column A (1)
+            'Source': ['Live Camera' if is_live else 'Video File'], # Column B (2)
+            'Processing Time': [duration],                          # Column C (3)
+            'Cars': [vehicle_counts.get('car', 0)],               # Column D (4)
+            'Motorcycles': [vehicle_counts.get('motorcycle', 0)], # Column E (5)
+            'Buses': [vehicle_counts.get('bus', 0)],              # Column F (6)
+            'Trucks': [vehicle_counts.get('truck', 0)],           # Column G (7)
+            'Total': [sum(vehicle_counts.values())]               # Column H (8)
         }
         
-        df = pd.DataFrame([data])
+        df = pd.DataFrame(data)
         
         if Path(DATA_FILE).exists():
             df.to_csv(DATA_FILE, mode='a', header=False, index=False)
