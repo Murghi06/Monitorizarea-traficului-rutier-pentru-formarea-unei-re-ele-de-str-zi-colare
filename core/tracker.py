@@ -71,17 +71,18 @@ class VehicleTracker:
         return self._match_and_update(detections, current_centroids)
     
     def _register_new_objects(self, detections, centroids):
-        """Register completely new objects and count them immediately if not parked"""
+        """Register completely new objects - don't count until movement is confirmed"""
         new_objects = []
         for i, det in enumerate(detections):
             self.tracked_objects[self.next_object_id] = {
                 'centroid': centroids[i],
                 'disappeared': 0,
                 'class': det['class'],
-                'counted': False,  # Will be counted by count_new_vehicles
+                'counted': False,
                 'stationary_frames': 0,
                 'is_parked': False,
-                'total_movement': 0
+                'total_movement': 0,
+                'has_moved': False  # NEW: Track if vehicle has ever moved
             }
             new_objects.append(self.next_object_id)
             self.next_object_id += 1
@@ -125,9 +126,18 @@ class VehicleTracker:
                 if movement < self.movement_threshold:
                     obj['stationary_frames'] += 1
                 else:
-                    # Vehicle is moving - reset stationary counter
+                    # Vehicle is moving
                     obj['stationary_frames'] = 0
                     obj['is_parked'] = False
+                    
+                    # Mark that this vehicle has moved at least once
+                    if not obj['has_moved']:
+                        obj['has_moved'] = True
+                        # Count vehicle now that it has shown movement
+                        if not obj['counted']:
+                            self.vehicle_counts[obj['class']] += 1
+                            obj['counted'] = True
+                            print(f"✓ Counted {obj['class']} after movement (ID: {obj_id}) - Total {obj['class']}: {self.vehicle_counts[obj['class']]}")
                 
                 # Mark as parked if stationary for very long
                 if obj['stationary_frames'] > PARKED_THRESHOLD:
@@ -167,7 +177,8 @@ class VehicleTracker:
                         'counted': False,
                         'stationary_frames': 0,
                         'is_parked': False,
-                        'total_movement': 0
+                        'total_movement': 0,
+                        'has_moved': False  # NEW: Track if vehicle has ever moved
                     }
                     new_objects.append(self.next_object_id)
                     self.next_object_id += 1
@@ -176,19 +187,13 @@ class VehicleTracker:
     
     def count_new_vehicles(self, new_object_ids):
         """
-        Count all newly detected vehicles immediately.
-        Only exclude vehicles if they are truly parked (stationary for 200+ frames).
-        This ensures we count all moving vehicles, including those at intersections.
+        Don't count vehicles immediately upon detection.
+        Vehicles are only counted when they show movement (handled in _match_and_update).
+        This prevents parked cars from being counted.
         """
-        for obj_id in new_object_ids:
-            obj = self.tracked_objects.get(obj_id)
-            if obj and not obj['counted']:
-                # Count immediately unless already marked as parked
-                # (Note: new vehicles won't be parked yet, so this counts all new detections)
-                if not obj['is_parked']:
-                    self.vehicle_counts[obj['class']] += 1
-                    obj['counted'] = True
-                    print(f"✓ Counted new {obj['class']} (ID: {obj_id}) - Total {obj['class']}: {self.vehicle_counts[obj['class']]}")
+        # This method is now primarily a placeholder for the interface
+        # Actual counting happens in _match_and_update when movement is detected
+        pass
     
     def is_object_parked(self, centroid):
         """Check if a detection corresponds to a parked object"""
